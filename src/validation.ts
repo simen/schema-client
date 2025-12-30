@@ -136,12 +136,18 @@ export function validateDocument(
   // Check document has _type
   const docType = document['_type']
   if (!docType || typeof docType !== 'string') {
+    const documentTypes = schemaTypes
+      .filter((t) => t.type === 'document')
+      .map((t) => t.name)
+
     issues.push({
       path: '_type',
       message: 'Document is missing required _type field',
       severity: 'error',
-      expected: 'string (document type name)',
-      suggestions: ['Add "_type": "yourTypeName" to the document'],
+      expected: `string (document type name)`,
+      suggestions: documentTypes.length > 0
+        ? [`Add "_type" with one of: ${documentTypes.slice(0, 5).join(', ')}${documentTypes.length > 5 ? '...' : ''}`]
+        : ['Add "_type": "yourTypeName" to the document'],
     })
 
     // Can't continue without knowing the type

@@ -113,11 +113,17 @@ export class SchemaClient {
       : `_.schemas.${workspace}`
 
     try {
-      const schema = await this.client.request<StoredWorkspaceSchema>({
+      const response = await this.client.request<StoredWorkspaceSchema | StoredWorkspaceSchema[]>({
         method: 'GET',
         url: `/projects/${this.projectId}/datasets/${this.dataset}/schemas/${schemaId}`,
       })
-      return schema
+      // Handle both array and object responses (API may return either)
+      if (Array.isArray(response)) {
+        // Find matching schema by workspace name, or return first if only one
+        const match = response.find((s) => s.workspace?.name === workspace)
+        return match ?? response[0] ?? null
+      }
+      return response
     } catch (error: unknown) {
       if (this.isNotFoundError(error)) {
         return null

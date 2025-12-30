@@ -281,6 +281,10 @@ export class SchemaClient {
    * Parse the stringified schema JSON into typed objects.
    */
   private parseSchemaTypes(schemaJson: string): ManifestSchemaType[] {
+    // Handle empty/undefined schema field gracefully
+    if (!schemaJson) {
+      return []
+    }
     try {
       const parsed = JSON.parse(schemaJson)
       if (!Array.isArray(parsed)) {

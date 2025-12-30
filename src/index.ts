@@ -96,7 +96,12 @@ export {
   findTypes,
   findTypeByName,
   getReferencedTypeNames,
+  // Skeleton generation
+  generateDocumentSkeleton,
+  generateSkeletonByTypeName,
 } from './helpers.js'
+
+export type { GenerateSkeletonOptions } from './helpers.js'
 
 // Validation
 export {

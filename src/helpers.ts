@@ -442,3 +442,214 @@ function isPrimitiveTypeName(typeName: string): boolean {
   ]
   return primitives.includes(typeName)
 }
+
+// =============================================================================
+// Skeleton Generation
+// =============================================================================
+
+/**
+ * Options for generating a document skeleton.
+ */
+export interface GenerateSkeletonOptions {
+  /** Include optional fields with default values (default: false) */
+  includeOptional?: boolean
+  /** Custom ID to use for the document (default: undefined, caller should set) */
+  documentId?: string
+  /** Type map for resolving custom object types */
+  typeMap?: Map<string, ManifestSchemaType>
+}
+
+/**
+ * Generate an empty document skeleton from a schema type.
+ *
+ * Creates a document with the correct `_type` and default values for required fields.
+ * Useful for creating new documents that will pass initial validation.
+ *
+ * @param schemaType - The document type definition
+ * @param options - Generation options
+ * @returns A document skeleton with default values
+ *
+ * @example
+ * ```ts
+ * const articleType = await schemaClient.getType('article')
+ * const skeleton = generateDocumentSkeleton(articleType)
+ * // { _type: 'article', title: '', slug: { current: '' } }
+ *
+ * // Include optional fields
+ * const fullSkeleton = generateDocumentSkeleton(articleType, { includeOptional: true })
+ * ```
+ */
+export function generateDocumentSkeleton(
+  schemaType: ManifestSchemaType,
+  options: GenerateSkeletonOptions = {}
+): Record<string, unknown> {
+  const { includeOptional = false, documentId, typeMap } = options
+
+  const skeleton: Record<string, unknown> = {
+    _type: schemaType.name,
+  }
+
+  if (documentId) {
+    skeleton['_id'] = documentId
+  }
+
+  if (!schemaType.fields) {
+    return skeleton
+  }
+
+  for (const field of schemaType.fields) {
+    const required = isFieldRequired(field)
+
+    // Skip optional fields unless includeOptional is true
+    if (!required && !includeOptional) {
+      continue
+    }
+
+    const defaultValue = getDefaultValueForField(field, typeMap, includeOptional)
+    if (defaultValue !== undefined) {
+      skeleton[field.name] = defaultValue
+    }
+  }
+
+  return skeleton
+}
+
+/**
+ * Generate a skeleton from a type name, looking it up in the provided types array.
+ *
+ * @param typeName - The name of the document type
+ * @param schemaTypes - All schema types from the schema
+ * @param options - Generation options
+ * @returns A document skeleton, or null if type not found
+ *
+ * @example
+ * ```ts
+ * const types = await schemaClient.getTypes()
+ * const skeleton = generateSkeletonByTypeName('article', types)
+ * ```
+ */
+export function generateSkeletonByTypeName(
+  typeName: string,
+  schemaTypes: ManifestSchemaType[],
+  options: GenerateSkeletonOptions = {}
+): Record<string, unknown> | null {
+  const schemaType = schemaTypes.find((t) => t.name === typeName)
+  if (!schemaType) {
+    return null
+  }
+
+  // Build type map for resolving custom types
+  const typeMap = new Map(schemaTypes.map((t) => [t.name, t]))
+
+  return generateDocumentSkeleton(schemaType, { ...options, typeMap })
+}
+
+/**
+ * Get the default value for a field based on its type.
+ */
+function getDefaultValueForField(
+  field: ManifestField,
+  typeMap?: Map<string, ManifestSchemaType>,
+  includeOptional: boolean = false
+): unknown {
+  // Check for explicit initialValue in schema
+  if (field.initialValue !== undefined) {
+    return field.initialValue
+  }
+
+  // Check for list options - use first value as default
+  const listOptions = getListOptions(field)
+  if (listOptions && listOptions.length > 0 && listOptions[0]) {
+    return listOptions[0].value
+  }
+
+  switch (field.type) {
+    case 'string':
+    case 'text':
+    case 'url':
+    case 'email':
+      return ''
+
+    case 'number':
+      return 0
+
+    case 'boolean':
+      return false
+
+    case 'date':
+    case 'datetime':
+      // Leave dates undefined - they're usually set explicitly
+      return undefined
+
+    case 'slug':
+      return { _type: 'slug', current: '' }
+
+    case 'array':
+      return []
+
+    case 'reference':
+      // References should be set explicitly, return null to indicate "no reference"
+      return null
+
+    case 'image':
+      // Return minimal image structure (agent will need to upload asset)
+      return { _type: 'image' }
+
+    case 'file':
+      // Return minimal file structure
+      return { _type: 'file' }
+
+    case 'object':
+      // Recursively generate skeleton for nested object
+      return generateObjectSkeleton(field, typeMap, includeOptional)
+
+    case 'block':
+      // Portable text - return empty array (content field is usually array of blocks)
+      return undefined
+
+    default:
+      // Check if it's a custom type defined in the schema
+      if (typeMap) {
+        const customType = typeMap.get(field.type)
+        if (customType && customType.type === 'object') {
+          return generateObjectSkeleton(customType, typeMap, includeOptional)
+        }
+      }
+      return undefined
+  }
+}
+
+/**
+ * Generate a skeleton for a nested object type.
+ */
+function generateObjectSkeleton(
+  objectType: ManifestSchemaType,
+  typeMap?: Map<string, ManifestSchemaType>,
+  includeOptional: boolean = false
+): Record<string, unknown> {
+  const skeleton: Record<string, unknown> = {}
+
+  // Add _type if the object type has a name (custom object types)
+  if (objectType.name && objectType.type !== 'object') {
+    skeleton['_type'] = objectType.name
+  }
+
+  if (!objectType.fields) {
+    return skeleton
+  }
+
+  for (const field of objectType.fields) {
+    const required = isFieldRequired(field)
+
+    if (!required && !includeOptional) {
+      continue
+    }
+
+    const defaultValue = getDefaultValueForField(field, typeMap, includeOptional)
+    if (defaultValue !== undefined) {
+      skeleton[field.name] = defaultValue
+    }
+  }
+
+  return skeleton
+}

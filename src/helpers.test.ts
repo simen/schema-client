@@ -25,6 +25,8 @@ import {
   walkSchemaTypes,
   findTypeByName,
   getReferencedTypeNames,
+  generateDocumentSkeleton,
+  generateSkeletonByTypeName,
 } from './helpers.js'
 
 // Test fixtures
@@ -301,5 +303,223 @@ describe('Schema Traversal', () => {
 
     expect(referenced).toContain('author')
     expect(referenced).toContain('person')
+  })
+})
+
+describe('Skeleton Generation', () => {
+  // Extended article type with more field types for testing
+  const fullArticleType: ManifestSchemaType = {
+    type: 'document',
+    name: 'article',
+    title: 'Article',
+    fields: [
+      {
+        type: 'string',
+        name: 'title',
+        title: 'Title',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'slug',
+        name: 'slug',
+        title: 'Slug',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'text',
+        name: 'description',
+        title: 'Description',
+      },
+      {
+        type: 'number',
+        name: 'priority',
+        title: 'Priority',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'boolean',
+        name: 'featured',
+        title: 'Featured',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'array',
+        name: 'tags',
+        title: 'Tags',
+        of: [{ type: 'string' }],
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'reference',
+        name: 'author',
+        title: 'Author',
+        to: [{ type: 'author' }],
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'image',
+        name: 'mainImage',
+        title: 'Main Image',
+      },
+      {
+        type: 'string',
+        name: 'status',
+        title: 'Status',
+        options: {
+          list: [
+            { title: 'Draft', value: 'draft' },
+            { title: 'Published', value: 'published' },
+          ],
+        },
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'string',
+        name: 'withInitialValue',
+        title: 'With Initial',
+        initialValue: 'default-value',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+    ],
+  }
+
+  const addressType: ManifestSchemaType = {
+    type: 'object',
+    name: 'address',
+    fields: [
+      {
+        type: 'string',
+        name: 'street',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'string',
+        name: 'city',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'string',
+        name: 'country',
+      },
+    ],
+  }
+
+  const personType: ManifestSchemaType = {
+    type: 'document',
+    name: 'person',
+    fields: [
+      {
+        type: 'string',
+        name: 'name',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+      {
+        type: 'address',
+        name: 'address',
+        validation: [{ rules: [{ flag: 'presence', constraint: 'required' }] }],
+      },
+    ],
+  }
+
+  describe('generateDocumentSkeleton', () => {
+    it('generates skeleton with _type', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType)
+      expect(skeleton._type).toBe('article')
+    })
+
+    it('includes document ID if provided', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType, {
+        documentId: 'my-article-id',
+      })
+      expect(skeleton._id).toBe('my-article-id')
+    })
+
+    it('includes only required fields by default', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType)
+
+      // Required fields should be present
+      expect(skeleton.title).toBe('')
+      expect(skeleton.slug).toEqual({ _type: 'slug', current: '' })
+      expect(skeleton.priority).toBe(0)
+      expect(skeleton.featured).toBe(false)
+      expect(skeleton.tags).toEqual([])
+      expect(skeleton.author).toBe(null)
+      expect(skeleton.status).toBe('draft') // First list option
+      expect(skeleton.withInitialValue).toBe('default-value')
+
+      // Optional fields should be absent
+      expect(skeleton.description).toBeUndefined()
+      expect(skeleton.mainImage).toBeUndefined()
+    })
+
+    it('includes optional fields when includeOptional is true', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType, {
+        includeOptional: true,
+      })
+
+      expect(skeleton.description).toBe('')
+      expect(skeleton.mainImage).toEqual({ _type: 'image' })
+    })
+
+    it('uses initialValue from schema', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType)
+      expect(skeleton.withInitialValue).toBe('default-value')
+    })
+
+    it('uses first list option as default', () => {
+      const skeleton = generateDocumentSkeleton(fullArticleType)
+      expect(skeleton.status).toBe('draft')
+    })
+
+    it('handles type with no fields', () => {
+      const emptyType: ManifestSchemaType = {
+        type: 'document',
+        name: 'empty',
+      }
+      const skeleton = generateDocumentSkeleton(emptyType)
+      expect(skeleton).toEqual({ _type: 'empty' })
+    })
+  })
+
+  describe('generateSkeletonByTypeName', () => {
+    const allTypes = [fullArticleType, addressType, personType]
+
+    it('looks up type by name and generates skeleton', () => {
+      const skeleton = generateSkeletonByTypeName('article', allTypes)
+
+      expect(skeleton).not.toBeNull()
+      expect(skeleton!._type).toBe('article')
+      expect(skeleton!.title).toBe('')
+    })
+
+    it('returns null for unknown type', () => {
+      const skeleton = generateSkeletonByTypeName('nonexistent', allTypes)
+      expect(skeleton).toBeNull()
+    })
+
+    it('resolves custom object types', () => {
+      const skeleton = generateSkeletonByTypeName('person', allTypes)
+
+      expect(skeleton).not.toBeNull()
+      expect(skeleton!._type).toBe('person')
+      expect(skeleton!.name).toBe('')
+      // Address is a custom object type - should be recursively resolved
+      expect(skeleton!.address).toEqual({
+        street: '',
+        city: '',
+      })
+    })
+
+    it('includes optional custom type fields with includeOptional', () => {
+      const skeleton = generateSkeletonByTypeName('person', allTypes, {
+        includeOptional: true,
+      })
+
+      expect(skeleton!.address).toEqual({
+        street: '',
+        city: '',
+        country: '',
+      })
+    })
   })
 })

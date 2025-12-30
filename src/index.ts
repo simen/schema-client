@@ -97,3 +97,17 @@ export {
   findTypeByName,
   getReferencedTypeNames,
 } from './helpers.js'
+
+// Validation
+export {
+  validateDocument,
+  formatValidationIssues,
+  formatValidationForAgent,
+} from './validation.js'
+
+export type {
+  ValidationSeverity,
+  ValidationIssue,
+  ValidationResult,
+  ValidateOptions,
+} from './validation.js'

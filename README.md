@@ -420,6 +420,131 @@ const referenced = getReferencedTypeNames(articleType)
 
 ---
 
+## Document Validation
+
+Validate documents against their schema and get detailed, actionable error messages. Perfect for form validation, content pipelines, and AI/agent workflows.
+
+### Basic Usage
+
+```typescript
+import { validateDocument, formatValidationIssues } from '@sanity/schema-client'
+
+const articleType = await schemaClient.getType('article')
+const allTypes = await schemaClient.getTypes()
+
+const result = validateDocument(myDocument, articleType, allTypes)
+
+if (!result.valid) {
+  console.log(result.summary)
+  // "Validation failed: 3 errors, 1 warning"
+
+  for (const error of result.errors) {
+    console.log(`${error.path}: ${error.message}`)
+    // "title: Title is required"
+    // "slug.current: Slug is missing current value"
+  }
+}
+```
+
+### Validation Result
+
+```typescript
+interface ValidationResult {
+  valid: boolean              // true if no errors (warnings allowed)
+  summary: string             // Human-readable summary
+  issues: ValidationIssue[]   // All issues
+  errors: ValidationIssue[]   // Just errors
+  warnings: ValidationIssue[] // Just warnings
+  documentType: string        // Type that was validated
+}
+
+interface ValidationIssue {
+  path: string                // JSON path: "content[0].children[2].text"
+  message: string             // Human-readable message
+  severity: 'error' | 'warning' | 'info'
+  rule?: { flag: string; constraint?: unknown }
+  value?: unknown             // The actual value
+  expected?: string           // What was expected
+  field?: { name, type, title }
+  suggestions?: string[]      // How to fix it
+}
+```
+
+### Validation Checks
+
+The validator checks:
+
+- **Required fields** - `presence: required` validation
+- **Type correctness** - strings are strings, numbers are numbers, etc.
+- **Min/max constraints** - length and value limits
+- **List options** - value must be from allowed list
+- **Email format** - valid email addresses
+- **URL format** - valid URLs
+- **Slug format** - lowercase, alphanumeric, hyphens
+- **Reference structure** - has `_ref` property
+- **Array items** - correct types, have `_key`
+- **Image/file assets** - have asset reference
+- **Portable text blocks** - have `_type`, `_key`, valid children
+
+### For Agent/AI Workflows
+
+Get structured output optimized for LLM consumption:
+
+```typescript
+import { validateDocument, formatValidationForAgent } from '@sanity/schema-client'
+
+const result = validateDocument(doc, schema, allTypes)
+const agentFriendly = formatValidationForAgent(result)
+
+// {
+//   valid: false,
+//   summary: "Validation failed: 2 errors",
+//   errorCount: 2,
+//   errors: [
+//     {
+//       path: "title",
+//       message: "Title is required",
+//       suggestion: "Provide a value for title",
+//       expected: "string"
+//     },
+//     {
+//       path: "status",
+//       message: "\"draft\" is not a valid option",
+//       suggestion: "Use \"published\"",
+//       expected: "one of: published, archived"
+//     }
+//   ]
+// }
+```
+
+### For Terminal/Logging
+
+```typescript
+import { formatValidationIssues } from '@sanity/schema-client'
+
+const formatted = formatValidationIssues(result)
+console.log(formatted)
+
+// Validation failed: 2 errors
+//
+// ✗ title: Title is required
+//   → Provide a value for title
+// ✗ status: "draft" is not a valid option
+//   → Use "published"
+```
+
+### Validation Options
+
+```typescript
+const result = validateDocument(doc, schema, allTypes, {
+  includeWarnings: true,     // Include warnings (default: true)
+  includeInfo: false,        // Include info messages (default: false)
+  stopOnFirstError: false,   // Stop after first error (default: false)
+})
+```
+
+---
+
 ## Real-World Examples
 
 ### Build a Form from Schema
@@ -586,7 +711,7 @@ import type {
   ManifestArrayMember,
   ManifestReferenceMember,
 
-  // Validation
+  // Schema validation rules
   ManifestValidationGroup,
   ManifestValidationRule,
 
@@ -598,6 +723,12 @@ import type {
   SchemaClientConfig,
   GetSchemaOptions,
   DeploySchemaInput,
+
+  // Document validation
+  ValidationResult,
+  ValidationIssue,
+  ValidationSeverity,
+  ValidateOptions,
 } from '@sanity/schema-client'
 ```
 

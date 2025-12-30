@@ -429,10 +429,10 @@ Validate documents against their schema and get detailed, actionable error messa
 ```typescript
 import { validateDocument, formatValidationIssues } from '@sanity/schema-client'
 
-const articleType = await schemaClient.getType('article')
+// Just need the schema types - document type is inferred from _type field
 const allTypes = await schemaClient.getTypes()
 
-const result = validateDocument(myDocument, articleType, allTypes)
+const result = validateDocument(myDocument, allTypes)
 
 if (!result.valid) {
   console.log(result.summary)
@@ -440,11 +440,14 @@ if (!result.valid) {
 
   for (const error of result.errors) {
     console.log(`${error.path}: ${error.message}`)
+    // "_type: Document is missing required _type field"
     // "title: Title is required"
     // "slug.current: Slug is missing current value"
   }
 }
 ```
+
+The validator automatically looks up the document type from the `_type` field. If `_type` is missing or refers to an unknown type, that's the first validation error reported - you need to fix that before you get more useful field-level errors.
 
 ### Validation Result
 
@@ -493,7 +496,7 @@ Get structured output optimized for LLM consumption:
 ```typescript
 import { validateDocument, formatValidationForAgent } from '@sanity/schema-client'
 
-const result = validateDocument(doc, schema, allTypes)
+const result = validateDocument(doc, allTypes)
 const agentFriendly = formatValidationForAgent(result)
 
 // {
@@ -536,7 +539,7 @@ console.log(formatted)
 ### Validation Options
 
 ```typescript
-const result = validateDocument(doc, schema, allTypes, {
+const result = validateDocument(doc, allTypes, {
   includeWarnings: true,     // Include warnings (default: true)
   includeInfo: false,        // Include info messages (default: false)
   stopOnFirstError: false,   // Stop after first error (default: false)

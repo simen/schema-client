@@ -76,20 +76,37 @@ export interface ValidateOptions {
 }
 
 /**
+ * Helper for early returns when validation cannot proceed (missing/invalid _type).
+ */
+function earlyResult(issues: ValidationIssue[], documentType: string): ValidationResult {
+  const errors = issues.filter((i) => i.severity === 'error')
+  return {
+    valid: false,
+    issues,
+    errors,
+    warnings: [],
+    info: [],
+    documentType,
+    summary: `Validation failed: ${errors.length} error${errors.length === 1 ? '' : 's'}`,
+  }
+}
+
+/**
  * Validates a document against its schema type.
  *
- * @param document - The document to validate
- * @param schemaType - The schema type definition
- * @param allTypes - All schema types (for resolving nested types)
+ * The document's `_type` field is used to look up the schema type from the
+ * provided types array.
+ *
+ * @param document - The document to validate (must have `_type` field)
+ * @param schemaTypes - All schema types from the schema
  * @param options - Validation options
  * @returns Detailed validation result
  *
  * @example
  * ```ts
- * const articleType = await schemaClient.getType('article')
  * const allTypes = await schemaClient.getTypes()
  *
- * const result = validateDocument(myDocument, articleType, allTypes)
+ * const result = validateDocument(myDocument, allTypes)
  *
  * if (!result.valid) {
  *   console.log(result.summary)
@@ -104,8 +121,7 @@ export interface ValidateOptions {
  */
 export function validateDocument(
   document: Record<string, unknown>,
-  schemaType: ManifestSchemaType,
-  allTypes: ManifestSchemaType[],
+  schemaTypes: ManifestSchemaType[],
   options: ValidateOptions = {}
 ): ValidationResult {
   const {
@@ -115,27 +131,42 @@ export function validateDocument(
   } = options
 
   const issues: ValidationIssue[] = []
-  const typeMap = new Map(allTypes.map((t) => [t.name, t]))
+  const typeMap = new Map(schemaTypes.map((t) => [t.name, t]))
 
   // Check document has _type
   const docType = document['_type']
-  if (!docType) {
+  if (!docType || typeof docType !== 'string') {
     issues.push({
       path: '_type',
       message: 'Document is missing required _type field',
       severity: 'error',
-      expected: schemaType.name,
-      suggestions: [`Add "_type": "${schemaType.name}" to the document`],
+      expected: 'string (document type name)',
+      suggestions: ['Add "_type": "yourTypeName" to the document'],
     })
-  } else if (docType !== schemaType.name) {
+
+    // Can't continue without knowing the type
+    return earlyResult(issues, 'unknown')
+  }
+
+  // Look up the schema type
+  const schemaType = typeMap.get(docType)
+  if (!schemaType) {
+    const documentTypes = schemaTypes
+      .filter((t) => t.type === 'document')
+      .map((t) => t.name)
+
     issues.push({
       path: '_type',
-      message: `Document type "${docType}" does not match expected type "${schemaType.name}"`,
+      message: `Unknown document type "${docType}"`,
       severity: 'error',
       value: docType,
-      expected: schemaType.name,
-      suggestions: [`Change _type to "${schemaType.name}" or use the correct schema type for validation`],
+      expected: `one of: ${documentTypes.slice(0, 10).join(', ')}${documentTypes.length > 10 ? '...' : ''}`,
+      suggestions: documentTypes.length > 0
+        ? [`Use one of the known types: ${documentTypes.slice(0, 5).join(', ')}`]
+        : ['Deploy your schema with "sanity schema deploy" first'],
     })
+
+    return earlyResult(issues, docType)
   }
 
   // Validate fields

@@ -124,7 +124,7 @@ describe('validateDocument', () => {
         tags: ['news'],
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)
@@ -135,22 +135,23 @@ describe('validateDocument', () => {
         title: 'Hello',
       }
 
-      const result = validateDocument(doc as any, articleType, allTypes)
+      const result = validateDocument(doc as any, allTypes)
 
       expect(result.valid).toBe(false)
       expect(result.errors.some(e => e.path === '_type')).toBe(true)
+      expect(result.errors.some(e => e.message.includes('missing required _type'))).toBe(true)
     })
 
-    it('reports wrong _type', () => {
+    it('reports unknown _type', () => {
       const doc = {
         _type: 'post',
         title: 'Hello',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
-      expect(result.errors.some(e => e.path === '_type' && e.message.includes('does not match'))).toBe(true)
+      expect(result.errors.some(e => e.path === '_type' && e.message.includes('Unknown document type'))).toBe(true)
     })
   })
 
@@ -161,7 +162,7 @@ describe('validateDocument', () => {
         description: 'Some description here',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       expect(result.errors.some(e => e.path === 'title' && e.message.includes('required'))).toBe(true)
@@ -177,7 +178,7 @@ describe('validateDocument', () => {
         slug: { current: 'test' },
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const titleError = result.errors.find(e => e.path === 'title')
@@ -192,7 +193,7 @@ describe('validateDocument', () => {
         description: 'Short',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const descError = result.errors.find(e => e.path === 'description')
@@ -207,7 +208,7 @@ describe('validateDocument', () => {
         status: 'invalid-status',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const statusError = result.errors.find(e => e.path === 'status')
@@ -223,7 +224,7 @@ describe('validateDocument', () => {
         email: 'not-an-email',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const emailError = result.errors.find(e => e.path === 'email')
@@ -240,7 +241,7 @@ describe('validateDocument', () => {
         rating: 'five',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const ratingError = result.errors.find(e => e.path === 'rating')
@@ -255,7 +256,7 @@ describe('validateDocument', () => {
         rating: 0,
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const ratingError = result.errors.find(e => e.path === 'rating')
@@ -270,7 +271,7 @@ describe('validateDocument', () => {
         rating: 10,
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const ratingError = result.errors.find(e => e.path === 'rating')
@@ -286,7 +287,7 @@ describe('validateDocument', () => {
         slug: { current: 'Hello World!' },
       }
 
-      const result = validateDocument(doc, articleType, allTypes, { includeWarnings: true })
+      const result = validateDocument(doc, allTypes, { includeWarnings: true })
 
       // Slug format is a warning, not an error
       const slugWarning = result.warnings.find(w => w.path === 'slug.current')
@@ -301,7 +302,7 @@ describe('validateDocument', () => {
         slug: {},
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const slugError = result.errors.find(e => e.path === 'slug.current')
@@ -318,7 +319,7 @@ describe('validateDocument', () => {
         author: 'not-a-reference',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const refError = result.errors.find(e => e.path === 'author')
@@ -333,7 +334,7 @@ describe('validateDocument', () => {
         author: { _type: 'reference' },
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const refError = result.errors.find(e => e.path === 'author._ref')
@@ -350,7 +351,7 @@ describe('validateDocument', () => {
         tags: 'not-an-array',
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const tagsError = result.errors.find(e => e.path === 'tags')
@@ -365,7 +366,7 @@ describe('validateDocument', () => {
         tags: [],
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       expect(result.valid).toBe(false)
       const tagsError = result.errors.find(e => e.path === 'tags')
@@ -382,7 +383,7 @@ describe('validateDocument', () => {
         mainImage: { asset: { _ref: 'image-123' } },
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       // Image is valid but missing required alt field
       expect(result.valid).toBe(false)
@@ -401,7 +402,7 @@ describe('validateDocument', () => {
         },
       }
 
-      const result = validateDocument(doc, articleType, allTypes)
+      const result = validateDocument(doc, allTypes)
 
       // No image-related errors
       expect(result.errors.filter(e => e.path.startsWith('mainImage'))).toHaveLength(0)
@@ -413,7 +414,6 @@ describe('formatValidationIssues', () => {
   it('formats valid result', () => {
     const result = validateDocument(
       { _type: 'article', title: 'Hi', slug: { current: 'hi' }, tags: ['a'] },
-      articleType,
       allTypes
     )
 
@@ -425,7 +425,6 @@ describe('formatValidationIssues', () => {
   it('formats errors with paths', () => {
     const result = validateDocument(
       { _type: 'article' },
-      articleType,
       allTypes
     )
 
@@ -441,7 +440,6 @@ describe('formatValidationForAgent', () => {
   it('returns structured data for agents', () => {
     const result = validateDocument(
       { _type: 'article' },
-      articleType,
       allTypes
     )
 
@@ -456,7 +454,6 @@ describe('formatValidationForAgent', () => {
   it('includes suggestions', () => {
     const result = validateDocument(
       { _type: 'article', status: 'invalid' },
-      articleType,
       allTypes
     )
 

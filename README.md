@@ -10,9 +10,7 @@ Since Sanity Studio v3.88.0, schemas can be deployed server-side, enabling deep 
 
 **Building content tooling?** You need programmatic access to understand your content model.
 
-**The problem:** Sanity's documentation for server-side schemas is sparse, the API returns stringified JSON that needs parsing, and the type definitions are complex.
-
-**This library solves it** with a simple API, full TypeScript types, and helper utilities.
+**This library provides** a simple API, full TypeScript types, and helper utilities for working with deployed schemas. It handles the JSON parsing and gives you typed access to your content model.
 
 ## Installation
 
